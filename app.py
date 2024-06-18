@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 def get_users() -> dict:
-    return [{"id": 1, "name": "Rajendra"}, {"id": 2, "name": "Ragini"}]
+    return [{"id": 1, "name": "Rajendra"}, {"id": 2, "name": "Arindam"}]
 
 
 def check_backend() -> str:
