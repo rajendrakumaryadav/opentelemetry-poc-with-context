@@ -1,0 +1,8 @@
+receivers:
+  jaeger:
+    host: localhost
+    port: 14268  # Jaeger default port (if used)
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:9411
