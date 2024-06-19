@@ -1,52 +1,56 @@
 import logging
 
 import grpc
-from flask import Flask
-from opentelemetry import trace
-from opentelemetry.context import context
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
-from opentelemetry.instrumentation.grpc import GrpcInstrumentorClient
-from opentelemetry.propagate import set_global_textmap
-from opentelemetry.propagators import b3
-from opentelemetry.propagators.b3 import B3Format
-from opentelemetry.trace import SpanContext
+import requests
+from flask import Flask, request
+from opentelemetry import baggage, context, propagators, trace
+from opentelemetry.baggage.propagation import W3CBaggagePropagator
+from opentelemetry.instrumentation.asgi import collect_request_attributes
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import (BatchSpanProcessor,
+                                            ConsoleSpanExporter)
+from opentelemetry.trace.propagation.tracecontext import \
+    TraceContextTextMapPropagator
 
 import HealthStatus_pb2
 import HealthStatus_pb2_grpc
 
-set_global_textmap(b3.B3Format())
 app = Flask(__name__, template_folder="templates")
 
-FlaskInstrumentor().instrument_app(app)
-GrpcInstrumentorClient().instrument()
 
 logger = logging.getLogger(__name__)
 
 tracer = trace.get_tracer(__name__)
 
-
 def get_users() -> dict:
-    return [{"id": 1, "name": "Rajendra"}, {"id": 2, "name": "Ragini"}]
+    return [{"id": 1, "name": "Rajendra"}, {"id": 2, "name": "Arindam"}]
 
 
 def check_backend() -> str:
-    with tracer.start_as_current_span("check_backend") as span:
+        # carrier = {}
+        # with tracer.start_as_current_span('check_backend') as span:
         with grpc.insecure_channel("grpc:50051") as channel:
             stub = HealthStatus_pb2_grpc.HealthStub(channel)
-            carrier = {}
-            B3Format().inject(carrier)
-            metadata = [(k, v) for k, v in carrier.items()]
             response = stub.Check(
-                HealthStatus_pb2.HealthCheckRequest(), metadata=metadata
+                HealthStatus_pb2.HealthCheckRequest()
             )
-            span.set_attribute("health_status", str(response))
+            # propagator = TraceContextTextMapPropagator()
+            # propagator.inject(carrier, context=None)
             logger.info(f"Health check response: {response}")
             return f"Health check response: {response}"
 
 
 @app.route("/")
 def index():
+    # with tracer.start_as_current_span('in the index') as span:
     logger.debug("Logging the backend status")
+    response = requests.post("http://auth:5000/auth", data={"data": "data"})
+    
+    logging.info(response.json())
+    if response.status_code == 200:
+        logger.info("Received the data, you are authorized")
+    else:
+        return {"auth": False}
     logger.info(check_backend())
     users = get_users()
     return users

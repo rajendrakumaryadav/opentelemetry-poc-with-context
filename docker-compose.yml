@@ -10,44 +10,81 @@ services:
       dockerfile: Dockerfile
     container_name: app
     hostname: app
-    environment:
-      COLLECTOR_ZIPKIN_HTTP_PORT: "9411" 
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     env_file: '.env'
     networks:
       - demo-network
     ports:
       - "5000:5000"
-
+      
+  auth_server:
+    build:
+      context: .
+      dockerfile: authserver.dockerfile
+    container_name: auth
+    hostname: auth
+    env_file: '.env'
+    networks:
+      - demo-network
+      
   grpc:
     build:
       context: .
       dockerfile: server.dockerfile
     container_name: grpc
     hostname: grpc
-    environment:
-      COLLECTOR_ZIPKIN_HTTP_PORT: "9411" 
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     env_file: '.env'
     networks:
       - demo-network
 
   jaeger:
-    image: jaegertracing/all-in-one
-    container_name: jaeger # Explicitly set container name
+    container_name: jaeger
     hostname: jaeger
+    image: jaegertracing/all-in-one
+    restart: always
     ports:
-      - "5775:5775/udp" # Map container port 5775 (UDP) to host port 5775 (UDP)
-      - "6831:6831/udp" # Map container port 6831 (UDP) to host port 6831 (UDP)
-      - "6832:6832/udp" # Map container port 6832 (UDP) to host port 6832 (UDP)
-      - "5778:5778" # Map container port 5778 (TCP) to host port 5778 (TCP)
-      - "16686:16686" # Map container port 16686 (TCP) to host port 16686 (TCP)
-      - "14268:14268" # Map container port 14268 (TCP) to host port 14268 (TCP)
-      - "9411:9411" # Map container port 9411 (TCP) to host port 9411 (TCP)
-      - "4317:4317"
-      - "4318:4318"
-    environment:
-      COLLECTOR_ZIPKIN_HTTP_PORT: "9411" # Set environment variable
-      COLLECTOR_OTLP_ENABLED: "true"
+    - "16686:16686"
+    - "14268"
+    - "14250"
+    networks:
+     - demo-network
+   
+  zipkin:
+    container_name: zipkin
+    hostname: zipkin
+    image: openzipkin/zipkin
+    restart: always
+    ports:
+     - "9411:9411"
+    networks:
+      - demo-network
+  
+  otel-collector:
+    container_name: otel-collector
+    hostname: otel-collector
+    image: otel/opentelemetry-collector:0.67.0
+    restart: always
+    volumes:
+       - ./otel-collector-config.yaml:/etc/otel-collector-config.yml
+    command: ["--config=/etc/otel-collector-config.yml", "${OTELCOL_ARGS}"]
+    ports:
+     - "1888:1888"
+     - "4317:4317"
+     - "8888:8888"
+     - "8889:8889"
+    depends_on:
+     - jaeger
+     - zipkin
+    networks:
+       - demo-network
+
+  prometheus:
+    container_name: prometheus
+    hostname: prometheus
+    image: prom/prometheus:latest
+    restart: always
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+    - "9090:9090"
     networks:
       - demo-network
